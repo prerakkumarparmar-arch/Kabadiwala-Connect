@@ -1,0 +1,1228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>E-Nexus — E-Waste Bridge (Standalone Single File)</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    @media print {
+      body * { visibility: hidden; }
+      #printable-slip, #printable-slip * { visibility: visible; }
+      #printable-slip { position: absolute; left: 0; top: 0; width: 100%; }
+    }
+  </style>
+</head>
+<body class="bg-[#fbfdfc] text-slate-900 min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // --- Data & Constants ---
+    const DEFAULT_LOTS = [
+      {
+        id: "LOT-AHM-1042",
+        collectorName: "Babu Lal (बाबू लाल)",
+        items: "PCBs & Motherboards",
+        weight: "18 kg",
+        weightKg: 18,
+        estValue: "₹2,520 – ₹2,970",
+        postedAgo: "15m ago",
+        status: "Ready for Pickup",
+        area: "Naroda GIDC, Ahmedabad",
+        payoutMethod: "UPI"
+      },
+      {
+        id: "LOT-AHM-1041",
+        collectorName: "Ramesh Bhai (रमेश भाई)",
+        items: "Copper Cables & Wires",
+        weight: "32 kg",
+        weightKg: 32,
+        estValue: "₹2,176 – ₹2,432",
+        postedAgo: "1h ago",
+        status: "Verified & Complete",
+        area: "Odhav Industrial Estate, Ahmedabad",
+        payoutMethod: "Cash"
+      },
+      {
+        id: "LOT-AHM-1040",
+        collectorName: "Dinesh Kumar (दिनेश कुमार)",
+        items: "Batteries (Li-ion/Lead)",
+        weight: "45 kg",
+        weightKg: 45,
+        estValue: "₹2,700 – ₹3,150",
+        postedAgo: "2h ago",
+        status: "Verified & Complete",
+        area: "Vatva GIDC, Ahmedabad",
+        payoutMethod: "UPI"
+      }
+    ];
+
+    const SCRAP_CATEGORIES = [
+      {
+        id: 'pcb',
+        nameEn: 'PCBs & Motherboards',
+        nameHi: 'मदरबोर्ड व सर्किट बोर्ड',
+        catEn: 'Circuit Boards',
+        catHi: 'सर्किट बोर्ड',
+        minPrice: 140,
+        maxPrice: 165,
+        unitEn: 'kg',
+        unitHi: 'किग्रा',
+        badgeEn: 'High Value',
+        badgeHi: 'ज्यादा भाव',
+        icon: 'cpu'
+      },
+      {
+        id: 'battery',
+        nameEn: 'Batteries (Li-ion/Lead)',
+        nameHi: 'लिथियम व लेड बैटरी',
+        catEn: 'Energy Storage',
+        catHi: 'बैटरी स्टोरेज',
+        minPrice: 60,
+        maxPrice: 70,
+        unitEn: 'kg',
+        unitHi: 'किग्रा',
+        badgeEn: 'Regulated',
+        badgeHi: 'सुरक्षित रिसाइक्लिंग',
+        icon: 'battery-charging'
+      },
+      {
+        id: 'copper',
+        nameEn: 'Copper Cables & Wires',
+        nameHi: 'तांबे के तार व केबल',
+        catEn: 'Wiring & Cables',
+        catHi: 'वायरिंग व केबल',
+        minPrice: 68,
+        maxPrice: 76,
+        unitEn: 'kg',
+        unitHi: 'किग्रा',
+        badgeEn: 'Fast Cash',
+        badgeHi: 'तुरंत नकद',
+        icon: 'cable'
+      },
+      {
+        id: 'heatsink',
+        nameEn: 'Aluminium Heat Sinks',
+        nameHi: 'एल्युमिनियम मेटल व हीटसिंक',
+        catEn: 'Metals & Alloys',
+        catHi: 'धातु व मेटल',
+        minPrice: 110,
+        maxPrice: 128,
+        unitEn: 'kg',
+        unitHi: 'किग्रा',
+        badgeEn: 'Metal Grade',
+        badgeHi: 'धातु ग्रेड',
+        icon: 'flame'
+      }
+    ];
+
+    const GUJARAT_HUBS = [
+      { city: 'Ahmedabad', area: 'Naroda GIDC' },
+      { city: 'Ahmedabad', area: 'Odhav Industrial Area' },
+      { city: 'Ahmedabad', area: 'Vatva GIDC' },
+      { city: 'Surat', area: 'Sachin GIDC' },
+      { city: 'Vadodara', area: 'Makarpura Industrial Estate' },
+      { city: 'Rajkot', area: 'Aji GIDC' }
+    ];
+
+    // --- Spoken Price Board for Vernacular Audio ---
+    function SpokenPriceBoard() {
+      const [language, setLanguage] = useState('hi');
+      const mockPrices = [
+        { id: '1', category: 'PCB Boards', hindiName: 'पी.सी.बी. बोर्ड (सर्किट)', marathiName: 'पीसीबी बोर्ड्स', pricePerKg: 180 },
+        { id: '2', category: 'Copper Cables', hindiName: 'तांबे के तार (केबल)', marathiName: 'तांब्याची केबल', pricePerKg: 450 },
+        { id: '3', category: 'Lithium-ion Batteries', hindiName: 'लिथियम बैटरी', marathiName: 'लिथियम बॅटरी', pricePerKg: 300 },
+        { id: '4', category: 'CRT / LCD Panels', hindiName: 'टीवी स्क्रीन / एलसीडी', marathiName: 'स्क्रीन / एलसीडी', pricePerKg: 40 },
+      ];
+
+      const speakPrice = (item) => {
+        if (!('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel();
+        let textToSpeak = '';
+        if (language === 'hi') {
+          textToSpeak = `${item.hindiName} का भाव है ${item.pricePerKg} रुपये प्रति किलो।`;
+        } else if (language === 'mr') {
+          textToSpeak = `${item.marathiName} चा भाव ${item.pricePerKg} रुपये प्रति किलो आहे.`;
+        } else {
+          textToSpeak = `${item.category} price is ${item.pricePerKg} rupees per kg.`;
+        }
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        utterance.lang = language === 'hi' ? 'hi-IN' : language === 'mr' ? 'mr-IN' : 'en-US';
+        utterance.rate = 0.9;
+        window.speechSynthesis.speak(utterance);
+      };
+
+      return (
+        <div className="p-4 bg-white rounded-2xl shadow-sm border border-slate-200 mb-4">
+          <div className="flex justify-between items-center mb-3">
+            <h4 className="text-base font-bold text-slate-800 flex items-center gap-1.5">
+              <span>📊</span> {language === 'hi' ? 'आज का बाज़ार भाव' : language === 'mr' ? 'आजचा बाजार भाव' : 'Live Price Board'}
+            </h4>
+            <div className="flex gap-1 bg-slate-100 p-1 rounded-lg text-xs font-semibold">
+              <button type="button" onClick={() => setLanguage('hi')} className={`px-2 py-0.5 rounded ${language === 'hi' ? 'bg-emerald-600 text-white' : 'text-slate-600'}`}>हिंदी</button>
+              <button type="button" onClick={() => setLanguage('mr')} className={`px-2 py-0.5 rounded ${language === 'mr' ? 'bg-emerald-600 text-white' : 'text-slate-600'}`}>मराठी</button>
+              <button type="button" onClick={() => setLanguage('en')} className={`px-2 py-0.5 rounded ${language === 'en' ? 'bg-emerald-600 text-white' : 'text-slate-600'}`}>EN</button>
+            </div>
+          </div>
+          <p className="text-[11px] text-slate-500 mb-2.5">
+            🔊 {language === 'hi' ? 'स्पीकर बटन पर क्लिक करके भाव सुनें।' : language === 'mr' ? 'आवाज ऐकण्यासाठी स्पिकर बटणावर क्लिक करा.' : 'Click speaker button to listen to prices.'}
+          </p>
+          <div className="space-y-2">
+            {mockPrices.map(item => (
+              <div key={item.id} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                <div>
+                  <div className="font-bold text-slate-800 text-xs">{language === 'hi' ? item.hindiName : language === 'mr' ? item.marathiName : item.category}</div>
+                  <div className="text-emerald-700 font-extrabold text-sm">₹{item.pricePerKg} <span className="text-[10px] font-normal text-slate-500">/ kg</span></div>
+                </div>
+                <button type="button" onClick={() => speakPrice(item)} className="flex items-center gap-1 bg-emerald-100 text-emerald-800 px-3 py-1.5 rounded-full font-bold text-xs hover:bg-emerald-200 active:scale-95 shadow-xs">
+                  <span>🔊</span>
+                  <span>{language === 'hi' ? 'सुनें' : language === 'mr' ? 'ऐका' : 'Listen'}</span>
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // --- AI Valuation & Anomaly Guard ---
+    function AIValuationAndAnomalyGuard() {
+      const [selectedCat, setSelectedCat] = useState('PCB');
+      const [weight, setWeight] = useState(5);
+      const [quotedPrice, setQuotedPrice] = useState(900);
+
+      const benchmarks = {
+        'PCB': { category: 'PCBs & Circuit Boards', avg: 180, min: 100, max: 350 },
+        'CABLE': { category: 'Copper Cables', avg: 450, min: 300, max: 600 },
+        'BATTERY': { category: 'Lithium-ion / Lead Batteries', avg: 120, min: 50, max: 250 },
+        'CRT': { category: 'CRT / LCD Panels', avg: 35, min: 15, max: 80 }
+      };
+
+      const benchmark = benchmarks[selectedCat] || benchmarks['PCB'];
+      const estimatedFair = weight * benchmark.avg;
+      const minAllowed = benchmark.min * weight;
+      const maxAllowed = benchmark.max * weight;
+
+      const isAnomaly = quotedPrice < minAllowed * 0.7 || quotedPrice > maxAllowed * 1.3;
+      const anomalyMsg = quotedPrice > maxAllowed * 1.3
+        ? '⚠️ Warning: Entered value is unusually high compared to current market standards. Please verify weight/category.'
+        : quotedPrice < minAllowed * 0.7
+        ? '⚠️ Notice: Entered price is significantly below standard market rates. You might be underpricing your material!'
+        : '✅ Transaction value looks consistent with verified regional price datasets.';
+
+      return (
+        <div className="p-4 bg-white rounded-2xl shadow-sm border border-slate-200 mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-indigo-600 font-bold">✨</span>
+            <h4 className="text-base font-bold text-slate-800">AI Valuation & Price Guardian</h4>
+          </div>
+          <p className="text-[11px] text-slate-500 mb-3">
+            Simulates machine learning computer vision classification and anomaly checks against live transaction bounds.
+          </p>
+
+          <div className="space-y-2.5 mb-3">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">Select Material Category</label>
+              <select
+                value={selectedCat}
+                onChange={e => setSelectedCat(e.target.value)}
+                className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-slate-50"
+              >
+                <option value="PCB">PCBs & Circuit Boards</option>
+                <option value="CABLE">Copper Cables</option>
+                <option value="BATTERY">Batteries (Li-ion/Lead)</option>
+                <option value="CRT">CRT / LCD Panels</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">Approximate Weight (kg)</label>
+              <input
+                type="number"
+                value={weight}
+                onChange={e => setWeight(Number(e.target.value))}
+                className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-slate-50"
+                min="0.5"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">Expected Sale Price Offered (₹)</label>
+              <input
+                type="number"
+                value={quotedPrice}
+                onChange={e => setQuotedPrice(Number(e.target.value))}
+                className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-slate-50"
+              />
+            </div>
+          </div>
+
+          <div className="p-2.5 bg-indigo-50/80 rounded-xl border border-indigo-100 mb-2.5">
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-indigo-950 font-semibold">AI Estimated Fair Value:</span>
+              <span className="text-indigo-700 font-black text-sm">₹{estimatedFair.toLocaleString('en-IN')}</span>
+            </div>
+            <p className="text-[10px] text-indigo-600 mt-0.5">
+              Historical bounds: ₹{minAllowed.toLocaleString('en-IN')} - ₹{maxAllowed.toLocaleString('en-IN')} for {weight} kg.
+            </p>
+          </div>
+
+          <div className={`p-2.5 rounded-xl border text-[11px] ${isAnomaly ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-emerald-50 border-emerald-200 text-emerald-900'}`}>
+            <span className="font-bold block mb-0.5">{isAnomaly ? 'Anomaly Detected' : 'Verified Safe'}</span>
+            {anomalyMsg}
+          </div>
+        </div>
+      );
+    }
+
+    // --- Mobile Frame Wrapper for Simulated Android Phone ---
+    function MobileFrameWrapper({ children }) {
+      return (
+        <div className="flex justify-center items-center min-h-screen bg-slate-900 p-4">
+          {/* Simulates an entry-level Android phone frame */}
+          <div className="w-full max-w-[400px] h-[800px] bg-white rounded-[40px] shadow-2xl border-[8px] border-slate-800 overflow-hidden flex flex-col relative">
+            {/* Notch / Speaker simulation */}
+            <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-32 h-5 bg-slate-800 rounded-b-xl z-50"></div>
+            
+            {/* Scrollable App Viewport */}
+            <div className="flex-1 overflow-y-auto pt-6">
+              {children}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // --- Main App Component ---
+    function App() {
+      const [lang, setLang] = useState('en');
+      const [role, setRole] = useState('none'); // 'none' | 'collector' | 'recycler'
+      const [location, setLocation] = useState({ city: 'Ahmedabad', area: 'Naroda GIDC' });
+      const [isLocModalOpen, setIsLocModalOpen] = useState(false);
+      const [assistantTab, setAssistantTab] = useState('spoken');
+      const [isPhoneFrame, setIsPhoneFrame] = useState(false);
+      const [isOnline, setIsOnline] = useState(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
+      const [lots, setLots] = useState(() => {
+        try {
+          const saved = localStorage.getItem('enexus_lots');
+          const data = saved ? JSON.parse(saved) : DEFAULT_LOTS;
+          return data.map(l => ({ ...l, isSynced: l.isSynced !== undefined ? l.isSynced : true }));
+        } catch {
+          return DEFAULT_LOTS.map(l => ({ ...l, isSynced: true }));
+        }
+      });
+
+      useEffect(() => {
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+        return () => {
+          window.removeEventListener('online', handleOnline);
+          window.removeEventListener('offline', handleOffline);
+        };
+      }, []);
+
+      const unsyncedCount = lots.filter(l => !l.isSynced).length;
+
+      const syncLots = () => {
+        const synced = lots.map(l => ({ ...l, isSynced: true }));
+        saveLots(synced);
+      };
+
+      // Collector Form State
+      const [selectedCatId, setSelectedCatId] = useState('pcb');
+      const [weight, setWeight] = useState(15);
+      const [collectorName, setCollectorName] = useState(lang === 'hi' ? 'बाबू लाल' : 'Babu Lal');
+      const [payoutMethod, setPayoutMethod] = useState('UPI');
+      const [collectorSuccess, setCollectorSuccess] = useState('');
+
+      // Recycler State
+      const [recyclerSearch, setRecyclerSearch] = useState('');
+      const [recyclerTab, setRecyclerTab] = useState('all'); // 'all' | 'pending' | 'completed'
+      const [activeSlip, setActiveSlip] = useState(null);
+      const [recyclerToast, setRecyclerToast] = useState('');
+
+      const isHi = lang === 'hi';
+
+      const saveLots = (newLots) => {
+        setLots(newLots);
+        try {
+          localStorage.setItem('enexus_lots', JSON.stringify(newLots));
+        } catch {}
+      };
+
+      const selectedCat = SCRAP_CATEGORIES.find(c => c.id === selectedCatId) || SCRAP_CATEGORIES[0];
+      const estMin = Math.round(selectedCat.minPrice * weight);
+      const estMax = Math.round(selectedCat.maxPrice * weight);
+
+      const handleCreateLot = (e) => {
+        e.preventDefault();
+        const lotNum = Math.floor(1000 + Math.random() * 9000);
+        const newLot = {
+          id: `LOT-AHM-${lotNum}`,
+          collectorName: collectorName.trim() || (isHi ? 'अधिकृत कबाड़ीवाला' : 'Authorized Collector'),
+          items: isHi ? selectedCat.nameHi : selectedCat.nameEn,
+          weight: `${weight} ${isHi ? 'किग्रा' : 'kg'}`,
+          weightKg: weight,
+          estValue: `₹${estMin.toLocaleString('en-IN')} – ₹${estMax.toLocaleString('en-IN')}`,
+          postedAgo: isHi ? 'अभी-अभी' : 'Just now',
+          status: 'Ready for Pickup',
+          area: `${location.area}, ${location.city}`,
+          payoutMethod: payoutMethod
+        };
+        const updated = [newLot, ...lots];
+        saveLots(updated);
+        setCollectorSuccess(isHi ? `हैंडओवर लॉट ${newLot.id} सफलतापूर्वक बनाया गया!` : `Handover lot ${newLot.id} created successfully!`);
+        setTimeout(() => setCollectorSuccess(''), 5000);
+      };
+
+      const handleVerifyLot = (lotId) => {
+        const updated = lots.map(l => {
+          if (l.id === lotId) {
+            return {
+              ...l,
+              status: 'Verified & Complete',
+              assignedRecycler: 'GPCB Authorized Hub #04',
+              verifiedAt: 'Just now'
+            };
+          }
+          return l;
+        });
+        saveLots(updated);
+        const verified = updated.find(l => l.id === lotId);
+        setActiveSlip(verified);
+        setRecyclerToast(isHi ? `लॉट ${lotId} डिजिटल कांटे पर सत्यापित हुआ!` : `Lot ${lotId} verified on Digital Scale #04!`);
+        setTimeout(() => setRecyclerToast(''), 5000);
+      };
+
+      return (
+        <div className="min-h-screen flex flex-col font-sans">
+          
+          {/* Network & Offline Status Banner */}
+          <div className={`p-2 text-xs text-center font-medium transition-colors border-b ${
+            isOnline 
+              ? 'bg-emerald-50 text-emerald-900 border-emerald-200' 
+              : 'bg-amber-50 text-amber-900 border-amber-300'
+          }`}>
+            {isOnline ? (
+              <div className="flex items-center justify-center gap-2">
+                <span>🟢 {isHi ? 'ऑनलाइन मोड' : 'Online Mode'} {unsyncedCount > 0 && `(${isHi ? 'सिंक हो रहा है' : 'Syncing'} ${unsyncedCount} ${isHi ? 'लंबित लॉट...' : 'pending lots...'})`}</span>
+                {unsyncedCount > 0 && (
+                  <button
+                    onClick={syncLots}
+                    className="px-2 py-0.5 rounded-md bg-emerald-700 text-white font-bold text-[10px] hover:bg-emerald-800"
+                  >
+                    {isHi ? 'अभी सिंक करें' : 'Sync Now'}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center gap-2">
+                <span>⚠️ {isHi ? 'ऑफ़लाइन मोड — मुख्य कार्य सक्रिय हैं। डेटा स्थानीय रूप से सहेजा गया है' : 'Offline Mode — Core features active. Data saved locally'} ({unsyncedCount} {isHi ? 'लंबित सिंक' : 'pending sync'}).</span>
+              </div>
+            )}
+          </div>
+
+          {/* Header Bar */}
+          <header className={`border-b sticky top-0 z-30 transition-colors ${role === 'recycler' ? 'bg-slate-900 text-white border-slate-800' : 'bg-white text-slate-900 border-slate-200'}`}>
+            <div className="max-w-6xl mx-auto px-4 py-3.5 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => setRole('none')}>
+                <div className="w-9 h-9 rounded-xl bg-emerald-700 text-white flex items-center justify-center font-black shadow-xs text-lg">
+                  ⚖️
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-black tracking-tight">
+                      {isHi ? 'ई-नेक्सस' : 'E-Nexus'}
+                    </span>
+                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${role === 'recycler' ? 'bg-slate-800 text-emerald-300 border border-slate-700' : 'bg-emerald-100 text-emerald-900 border border-emerald-300'}`}>
+                      {role === 'collector' ? (isHi ? 'कबाड़ीवाला पटल' : 'Collector Portal') : role === 'recycler' ? (isHi ? 'रिसाइक्लर डेस्क' : 'Recycler Desk') : (isHi ? 'ई-कचरा सेतु' : 'E-Waste Bridge')}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {role !== 'none' && (
+                  <button
+                    onClick={() => setRole('none')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors ${role === 'recycler' ? 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-white' : 'bg-slate-100 border-slate-200 hover:bg-slate-200 text-slate-800'}`}
+                  >
+                    ← {isHi ? 'भूमिका बदलें' : 'Change Role'}
+                  </button>
+                )}
+
+                {role === 'collector' && (
+                  <button
+                    onClick={() => setRole('recycler')}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white transition-colors flex items-center gap-1"
+                  >
+                    <span>🏢</span>
+                    <span>{isHi ? 'रिसाइक्लर डेस्क' : 'Recycler Desk'}</span>
+                  </button>
+                )}
+
+                {role === 'recycler' && (
+                  <button
+                    onClick={() => setRole('collector')}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-700 hover:bg-emerald-600 text-white transition-colors flex items-center gap-1"
+                  >
+                    <span>📱</span>
+                    <span>{isHi ? 'कबाड़ीवाला पटल' : 'Collector Portal'}</span>
+                  </button>
+                )}
+
+                {/* Location Badge */}
+                <button
+                  onClick={() => setIsLocModalOpen(true)}
+                  className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border ${role === 'recycler' ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-slate-100 border-slate-200 text-slate-700'}`}
+                >
+                  <span className="text-emerald-500">📍</span>
+                  <span className="max-w-[130px] truncate">{location.area}</span>
+                  <span className="text-emerald-600 font-bold underline ml-1">{isHi ? 'बदलें' : 'Change'}</span>
+                </button>
+
+                {/* Language Switch */}
+                <div className={`flex items-center p-0.5 rounded-xl border text-xs font-bold ${role === 'recycler' ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200'}`}>
+                  <button
+                    onClick={() => setLang('en')}
+                    className={`px-2.5 py-1 rounded-lg transition-all ${!isHi ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    English
+                  </button>
+                  <button
+                    onClick={() => setLang('hi')}
+                    className={`px-2.5 py-1 rounded-lg transition-all ${isHi ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    हिन्दी
+                  </button>
+                </div>
+
+                {/* Phone Frame Toggle for Collector */}
+                {role === 'collector' && (
+                  <button
+                    onClick={() => setIsPhoneFrame(prev => !prev)}
+                    className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-950 border border-indigo-200 flex items-center gap-1 shadow-2xs"
+                    title="Toggle Simulated Android Phone Frame"
+                  >
+                    <span>📱</span>
+                    <span className="hidden sm:inline">{isPhoneFrame ? (isHi ? 'डेस्कटॉप' : 'Desktop') : (isHi ? 'फोन फ्रेम' : 'Phone Frame')}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </header>
+
+          {/* VIEW 1: ROLE SELECTION (LANDING SCREEN - 2 OPTIONS) */}
+          {role === 'none' && (
+            <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-12 flex flex-col justify-center">
+              <div className="text-center max-w-2xl mx-auto mb-10">
+                <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-100 text-emerald-900 text-xs font-bold mb-3 border border-emerald-300">
+                  ✨ {isHi ? 'अपना पोर्टल चुनें' : 'Select Your Portal'}
+                </div>
+                <h1 className="text-3xl sm:text-4xl font-black text-slate-950 tracking-tight mb-2.5">
+                  {isHi ? 'आपकी भूमिका क्या है?' : 'Who Are You Today?'}
+                </h1>
+                <p className="text-sm sm:text-base text-slate-600 font-medium">
+                  {isHi ? 'उचित सरकारी बाजार भाव और सीधे डिजिटल कांटा सत्यापन के लिए अपना पोर्टल चुनें।' : 'Choose your portal to get started with transparent fair rates and direct digital scale verification.'}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
+                {/* Collector Option */}
+                <div
+                  onClick={() => setRole('collector')}
+                  className="group bg-white rounded-3xl p-6 sm:p-8 border-2 border-emerald-600/70 hover:border-emerald-700 shadow-md hover:shadow-xl transition-all cursor-pointer ring-4 ring-emerald-50 flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-5">
+                      <div className="w-14 h-14 rounded-2xl bg-emerald-700 text-white flex items-center justify-center text-2xl shadow-sm">
+                        🚚
+                      </div>
+                      <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                        {isHi ? 'स्क्रैप संग्रहकर्ता' : 'Informal Waste Collector'}
+                      </span>
+                    </div>
+
+                    <h2 className="text-2xl font-black text-slate-950 mb-2 group-hover:text-emerald-800 transition-colors">
+                      {isHi ? 'कबाड़ीवाला / स्क्रैप संग्रहकर्ता' : 'Collector / Kabadiwala'}
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-600 mb-6 font-medium leading-relaxed">
+                      {isHi ? 'दैनिक उचित बाजार दरें देखें, वजन के अनुसार सही मूल्य जानें और तुरंत डिजिटल हैंडओवर बनाएं।' : 'Check daily benchmark scrap prices, calculate fair value by weight, and create instant digital handover lots.'}
+                    </p>
+
+                    <div className="grid grid-cols-3 gap-2 py-2.5 px-3 mb-6 bg-emerald-50/60 rounded-2xl border border-emerald-200 text-center text-xs font-bold text-slate-800">
+                      <div>📦 {isHi ? 'सामान चुनें' : '1. Select'}</div>
+                      <div className="border-x border-emerald-200">⚖️ {isHi ? 'वजन दर्ज करें' : '2. Weight'}</div>
+                      <div>💵 {isHi ? 'तुरंत नकद' : '3. Payout'}</div>
+                    </div>
+
+                    <ul className="space-y-2 mb-6 text-xs font-semibold text-slate-700">
+                      <li className="flex items-center gap-2">✓ {isHi ? 'सरकारी अधिकृत दैनिक बाजार दरें' : 'Fair CPCB daily market scrap rates'}</li>
+                      <li className="flex items-center gap-2">✓ {isHi ? 'बिना किसी दलाली या कमीशन कटौती के' : 'Zero middleman deductions or commission'}</li>
+                      <li className="flex items-center gap-2">✓ {isHi ? 'यूपीआई या नकद द्वारा तुरंत भुगतान' : 'Instant settlement via UPI or Cash'}</li>
+                    </ul>
+                  </div>
+
+                  <button className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold py-3.5 px-5 rounded-2xl shadow-md transition-all flex items-center justify-center gap-2">
+                    <span>📱</span>
+                    <span>{isHi ? 'कबाड़ीवाला के रूप में शुरू करें' : 'Continue as Collector'}</span>
+                    <span>→</span>
+                  </button>
+                </div>
+
+                {/* Recycler Option */}
+                <div
+                  onClick={() => setRole('recycler')}
+                  className="group bg-white rounded-3xl p-6 sm:p-8 border-2 border-slate-300 hover:border-slate-800 shadow-md hover:shadow-xl transition-all cursor-pointer ring-4 ring-slate-100 flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-5">
+                      <div className="w-14 h-14 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-2xl shadow-sm">
+                        🏭
+                      </div>
+                      <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-slate-100 text-slate-800 border border-slate-300">
+                        {isHi ? 'जीपीसीबी अधिकृत रिसाइक्लर' : 'GPCB Registered Aggregator'}
+                      </span>
+                    </div>
+
+                    <h2 className="text-2xl font-black text-slate-950 mb-2 group-hover:text-slate-900 transition-colors">
+                      {isHi ? 'अधिकृत रिसाइक्लर' : 'Authorized Recycler'}
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-600 mb-6 font-medium leading-relaxed">
+                      {isHi ? 'कबाड़ीवालों से लॉट प्राप्त करें, प्रमाणित डिजिटल कांटे पर वजन जांचें और रसीद जारी करें।' : 'Receive incoming scrap batches from collectors, verify weights on certified digital scales, and issue compliance slips.'}
+                    </p>
+
+                    <div className="grid grid-cols-3 gap-2 py-2.5 px-3 mb-6 bg-slate-50 rounded-2xl border border-slate-200 text-center text-xs font-bold text-slate-800">
+                      <div>📋 {isHi ? 'आवक लॉट' : '1. Intake'}</div>
+                      <div className="border-x border-slate-200">⚖️ {isHi ? 'कांटा जांचें' : '2. Scale'}</div>
+                      <div>📜 {isHi ? 'पर्ची जारी' : '3. Slip'}</div>
+                    </div>
+
+                    <ul className="space-y-2 mb-6 text-xs font-semibold text-slate-700">
+                      <li className="flex items-center gap-2">✓ {isHi ? 'जीपीसीबी अधिकृत कानूनी अनुपालन रिकॉर्ड' : 'GPCB authorized compliance manifests'}</li>
+                      <li className="flex items-center gap-2">✓ {isHi ? 'कबाड़ीवालों से सीधा डिजिटल संपर्क' : 'Real-time collector handover stream'}</li>
+                      <li className="flex items-center gap-2">✓ {isHi ? '1-क्लिक में आधिकारिक डिजिटल भुगतान पर्ची' : '1-click official digital settlement slips'}</li>
+                    </ul>
+                  </div>
+
+                  <button className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-3.5 px-5 rounded-2xl shadow-md transition-all flex items-center justify-center gap-2">
+                    <span>🏢</span>
+                    <span>{isHi ? 'रिसाइक्लर के रूप में शुरू करें' : 'Continue as Recycler'}</span>
+                    <span>→</span>
+                  </button>
+                </div>
+              </div>
+            </main>
+          )}
+
+          {/* VIEW 2: COLLECTOR WORKSPACE */}
+          {role === 'collector' && (
+            isPhoneFrame ? (
+              <div className="relative">
+                <div className="fixed top-3 right-3 z-50">
+                  <button
+                    onClick={() => setIsPhoneFrame(false)}
+                    className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-black shadow-2xl border border-slate-600 cursor-pointer"
+                  >
+                    ✕ {isHi ? 'डेस्कटॉप दृश्य' : 'Exit Phone Frame'}
+                  </button>
+                </div>
+                <MobileFrameWrapper>
+                  <div className="p-3 bg-slate-50 min-h-full">
+                    <div className="mb-4 pb-2 border-b border-slate-200">
+                      <div className="flex items-center justify-between">
+                        <h2 className="text-base font-black text-slate-950">
+                          {isHi ? 'कबाड़ीवाला पटल' : 'Collector Portal'}
+                        </h2>
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
+                          ANDROID
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        {location.city}, {location.area}
+                      </p>
+                    </div>
+
+                    {collectorSuccess && (
+                      <div className="mb-4 p-3 rounded-xl bg-emerald-900 text-white flex items-center justify-between gap-2 text-xs font-bold shadow-md">
+                        <span>✓ {collectorSuccess}</span>
+                        <button onClick={() => setCollectorSuccess('')} className="text-emerald-200 font-bold">✕</button>
+                      </div>
+                    )}
+
+                    <div className="space-y-4">
+                      <div className="flex bg-slate-200 p-1 rounded-xl text-xs font-bold">
+                        <button
+                          type="button"
+                          onClick={() => setAssistantTab('spoken')}
+                          className={`flex-1 py-1 rounded-lg ${assistantTab === 'spoken' ? 'bg-white text-emerald-900 shadow-xs' : 'text-slate-600'}`}
+                        >
+                          🔊 {isHi ? 'भाव' : 'Rates'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAssistantTab('ai')}
+                          className={`flex-1 py-1 rounded-lg ${assistantTab === 'ai' ? 'bg-white text-indigo-900 shadow-xs' : 'text-slate-600'}`}
+                        >
+                          ✨ {isHi ? 'एआई' : 'AI'}
+                        </button>
+                      </div>
+                      {assistantTab === 'spoken' ? <SpokenPriceBoard /> : <AIValuationAndAnomalyGuard />}
+
+                      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                        <h3 className="text-xs font-black uppercase text-slate-700 mb-2">
+                          {isHi ? 'नया लॉट बनाएं' : 'Create New Lot'}
+                        </h3>
+                        <form onSubmit={handleCreateLot} className="space-y-3">
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                              {isHi ? 'सामान श्रेणी' : 'Category'}
+                            </label>
+                            <select
+                              value={selectedCatId}
+                              onChange={e => setSelectedCatId(e.target.value)}
+                              className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-slate-50 font-bold"
+                            >
+                              {SCRAP_CATEGORIES.map(c => (
+                                <option key={c.id} value={c.id}>
+                                  {isHi ? c.hindiName : c.name} (₹{c.minPrice}-₹{c.maxPrice}/kg)
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                              {isHi ? 'वजन (किग्रा)' : 'Weight (kg)'}
+                            </label>
+                            <input
+                              type="number"
+                              value={weightKg}
+                              onChange={e => setWeightKg(Math.max(1, Number(e.target.value)))}
+                              className="w-full p-2 text-xs border border-slate-300 rounded-lg bg-slate-50 font-bold"
+                              min="1"
+                            />
+                          </div>
+
+                          <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200">
+                            <div className="flex justify-between text-xs">
+                              <span className="text-emerald-950 font-bold">{isHi ? 'अनुमानित मूल्य:' : 'Estimated Fair Value:'}</span>
+                              <span className="font-extrabold text-emerald-800">
+                                ₹{(weightKg * selectedCategory.minPrice).toLocaleString('en-IN')} – ₹{(weightKg * selectedCategory.maxPrice).toLocaleString('en-IN')}
+                              </span>
+                            </div>
+                          </div>
+
+                          <button
+                            type="submit"
+                            className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold rounded-xl text-xs shadow-xs cursor-pointer"
+                          >
+                            ✓ {isHi ? 'लॉट सबमिट करें' : 'Submit Handover Lot'}
+                          </button>
+                        </form>
+                      </div>
+
+                      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                        <h3 className="text-xs font-black uppercase text-slate-700 mb-2">
+                          {isHi ? 'हालिया लॉट' : 'Recent Lots'} ({lots.length})
+                        </h3>
+                        <div className="space-y-2">
+                          {lots.slice(0, 5).map(lot => (
+                            <div key={lot.id} className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                              <div className="flex justify-between font-mono font-bold text-[11px]">
+                                <span>{lot.id}</span>
+                                <span className="text-emerald-700">{lot.estValue}</span>
+                              </div>
+                              <div className="text-slate-600 text-[11px] mt-0.5">{lot.items} • {lot.weight}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                </MobileFrameWrapper>
+              </div>
+            ) : (
+            <main className="max-w-6xl mx-auto px-4 py-8 w-full">
+              {collectorSuccess && (
+                <div className="mb-6 p-4 rounded-2xl bg-emerald-900 text-white flex items-center justify-between gap-3 shadow-lg">
+                  <div className="flex items-center gap-2 font-bold text-sm">
+                    <span>✓</span> {collectorSuccess}
+                  </div>
+                  <button onClick={() => setCollectorSuccess('')} className="text-emerald-200 font-bold">✕</button>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* Form (7 cols) */}
+                <div className="lg:col-span-7 bg-white rounded-3xl p-6 border border-slate-200 shadow-md">
+                  <div className="mb-6 pb-4 border-b border-slate-100">
+                    <h2 className="text-2xl font-black text-slate-950">
+                      {isHi ? 'कबाड़ीवाला स्क्रैप हैंडओवर पटल' : 'Collector Handover Portal'}
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-600 font-medium">
+                      {isHi ? 'स्क्रैप हैंडओवर बैच बनाएं, सरकारी उचित बाजार भाव लॉक करें और तुरंत डिजिटल भुगतान पाएं।' : 'Create a scrap handover batch, lock in daily fair market rates, and get instant digital payout.'}
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleCreateLot} className="space-y-6">
+                    {/* Category */}
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+                        {isHi ? '1. स्क्रैप सामान श्रेणी चुनें' : '1. Pick Scrap Category'}
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {SCRAP_CATEGORIES.map(cat => {
+                          const isSel = selectedCatId === cat.id;
+                          return (
+                            <div
+                              key={cat.id}
+                              onClick={() => setSelectedCatId(cat.id)}
+                              className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between ${isSel ? 'border-emerald-700 bg-emerald-50/70 shadow-xs' : 'border-slate-200 hover:border-slate-300'}`}
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-extrabold text-slate-900">{isHi ? cat.nameHi : cat.nameEn}</span>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 font-bold">{isHi ? cat.badgeHi : cat.badgeEn}</span>
+                              </div>
+                              <div className="text-xs font-black text-emerald-900 font-mono">
+                                ₹{cat.minPrice} – ₹{cat.maxPrice} / {isHi ? cat.unitHi : cat.unitEn}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Weight Stepper */}
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                      <div className="flex justify-between items-center mb-2">
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                          {isHi ? '2. वजन दर्ज करें (किग्रा)' : '2. Input Weight (KG)'}
+                        </label>
+                        <span className="text-xs font-bold text-emerald-800">
+                          ₹{selectedCat.minPrice} – ₹{selectedCat.maxPrice} / {isHi ? selectedCat.unitHi : selectedCat.unitEn}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setWeight(Math.max(1, weight - 5))}
+                          className="w-12 h-12 rounded-xl bg-white border border-slate-300 font-black text-lg hover:bg-slate-100"
+                        >
+                          -5
+                        </button>
+                        <input
+                          type="number"
+                          min={1}
+                          max={5000}
+                          value={weight}
+                          onChange={(e) => setWeight(Math.max(1, Number(e.target.value) || 1))}
+                          className="w-full text-center py-2.5 px-4 bg-white border border-slate-300 rounded-xl text-2xl font-black text-slate-950 font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setWeight(weight + 5)}
+                          className="w-12 h-12 rounded-xl bg-white border border-slate-300 font-black text-lg hover:bg-slate-100"
+                        >
+                          +5
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2 mt-3 overflow-x-auto">
+                        {[5, 10, 15, 25, 50, 100].map(p => (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => setWeight(p)}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold ${weight === p ? 'bg-emerald-700 text-white' : 'bg-white border text-slate-700'}`}
+                          >
+                            {p} {isHi ? 'किग्रा' : 'KG'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Estimated Fair Value */}
+                    <div className="bg-emerald-950 text-white p-5 rounded-2xl border border-emerald-800 shadow-md">
+                      <div className="text-xs font-bold uppercase tracking-wider text-emerald-300 mb-1">
+                        {isHi ? 'अनुमानित उचित मूल्य (डिजिटल कांटा बेंचमार्क)' : 'ESTIMATED FAIR VALUE (DIGITAL SCALE BENCHMARK)'}
+                      </div>
+                      <div className="text-3xl sm:text-4xl font-black font-mono">
+                        ₹{estMin.toLocaleString('en-IN')} – ₹{estMax.toLocaleString('en-IN')}
+                      </div>
+                      <p className="text-xs text-emerald-200 mt-1 font-medium">
+                        {isHi ? 'जीपीसीबी अधिकृत बाजार दरें · बिना किसी दलाली के पूरा भुगतान' : 'Fair GPCB registered market rates · Zero middleman cut'}
+                      </p>
+                    </div>
+
+                    {/* Collector Name & Payout */}
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                          {isHi ? '3. कबाड़ीवाला का नाम' : '3. Collector Name'}
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={collectorName}
+                          onChange={(e) => setCollectorName(e.target.value)}
+                          className="w-full px-4 py-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl font-semibold"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                          {isHi ? 'भुगतान का माध्यम' : 'Payout Mode'}
+                        </label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setPayoutMethod('UPI')}
+                            className={`py-3 rounded-xl border text-xs font-bold ${payoutMethod === 'UPI' ? 'border-emerald-700 bg-emerald-50 text-emerald-950 ring-2 ring-emerald-100' : 'border-slate-200 bg-white text-slate-700'}`}
+                          >
+                            UPI / PhonePe
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPayoutMethod('Cash')}
+                            className={`py-3 rounded-xl border text-xs font-bold ${payoutMethod === 'Cash' ? 'border-emerald-700 bg-emerald-50 text-emerald-950 ring-2 ring-emerald-100' : 'border-slate-200 bg-white text-slate-700'}`}
+                          >
+                            {isHi ? 'नकद (Cash)' : 'Cash'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-black text-base py-4 rounded-2xl shadow-md transition-all"
+                    >
+                      {isHi ? 'हैंडओवर लॉट बनाएं →' : 'Create Handover Lot →'}
+                    </button>
+                  </form>
+                </div>
+
+                {/* Spoken Rates / AI Guardian & Recent Lots List (5 cols) */}
+                <div className="lg:col-span-5 space-y-4">
+                  <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setAssistantTab('spoken')}
+                      className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition-all ${
+                        assistantTab === 'spoken' ? 'bg-white text-emerald-900 shadow-xs' : 'text-slate-600'
+                      }`}
+                    >
+                      🔊 {isHi ? 'बोलने वाला भाव' : 'Spoken Rates'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAssistantTab('ai')}
+                      className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition-all ${
+                        assistantTab === 'ai' ? 'bg-white text-indigo-900 shadow-xs' : 'text-slate-600'
+                      }`}
+                    >
+                      ✨ {isHi ? 'एआई वैल्यूएशन गार्ड' : 'AI Price Guardian'}
+                    </button>
+                  </div>
+
+                  {assistantTab === 'spoken' ? <SpokenPriceBoard /> : <AIValuationAndAnomalyGuard />}
+
+                  <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-md space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <h3 className="text-lg font-black text-slate-950">
+                      {isHi ? 'मेरे हालिया हैंडओवर लॉट' : 'My Recent Handover Lots'}
+                    </h3>
+                    <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-800">
+                      {lots.length}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                    {lots.map(lot => {
+                      const isDone = lot.status === 'Verified & Complete';
+                      return (
+                        <div key={lot.id} className={`p-4 rounded-2xl border ${isDone ? 'bg-emerald-50/40 border-emerald-300' : 'bg-white border-slate-200'}`}>
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="font-mono text-xs font-black">{lot.id}</span>
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${isDone ? 'bg-emerald-600 text-white' : 'bg-amber-100 text-amber-900'}`}>
+                              {isDone ? (isHi ? 'सत्यापित एवं संपन्न' : 'VERIFIED & COMPLETE') : (isHi ? 'पिकअप हेतु तैयार' : 'READY FOR PICKUP')}
+                            </span>
+                          </div>
+                          <div className="text-sm font-bold text-slate-900">{lot.items}</div>
+                          <div className="flex justify-between text-xs text-slate-600 mt-2 pt-2 border-t border-slate-100">
+                            <span>{lot.weight}</span>
+                            <span className="font-extrabold text-emerald-900 font-mono">{lot.estValue}</span>
+                          </div>
+                          {isDone && (
+                            <div className="mt-2 pt-2 border-t border-emerald-100 flex justify-between items-center text-xs">
+                              <span className="text-emerald-800 font-bold">✓ Scale #04 Verified</span>
+                              <button onClick={() => setActiveSlip(lot)} className="text-emerald-700 font-bold underline">
+                                {isHi ? 'पर्ची देखें' : 'View Slip'}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </main>
+            )
+          )}
+
+          {/* VIEW 3: RECYCLER WORKSPACE */}
+          {role === 'recycler' && (
+            <main className="max-w-6xl mx-auto px-4 py-8 w-full space-y-6">
+              {recyclerToast && (
+                <div className="p-4 rounded-2xl bg-emerald-950 text-white flex items-center justify-between gap-3 shadow-lg">
+                  <div className="flex items-center gap-2 font-bold text-sm">
+                    <span>✓</span> {recyclerToast}
+                  </div>
+                  <button onClick={() => setRecyclerToast('')} className="text-emerald-200 font-bold">✕</button>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center pb-2 border-b border-slate-200 gap-2">
+                <div>
+                  <h2 className="text-2xl font-black text-slate-950">
+                    {isHi ? 'रिसाइक्लर आवक एवं कांटा सत्यापन पटल' : 'Recycler Intake & Scale Verification Desk'}
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-600 font-medium">
+                    {isHi ? 'कबाड़ीवालों से आने वाले स्क्रैप लॉट की जांच करें, डिजिटल कांटे पर वजन मापें और 1-क्लिक में आधिकारिक भुगतान पर्ची जारी करें।' : 'Verify incoming scrap lots from local collectors, calibrate digital scale readings, and issue official settlement slips.'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 bg-slate-900 text-emerald-400 px-3 py-1.5 rounded-xl border border-slate-800 text-xs font-mono font-bold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                  <span>{isHi ? 'डिजिटल कांटा #04 चालू' : 'Digital Scale #04 Online'}</span>
+                </div>
+              </div>
+
+              {/* Metrics */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                  <div className="text-[10px] font-bold uppercase text-slate-500">{isHi ? 'सत्यापन लंबित' : 'Pending Verification'}</div>
+                  <div className="text-2xl font-black text-amber-600 font-mono">{lots.filter(l => l.status !== 'Verified & Complete').length}</div>
+                </div>
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                  <div className="text-[10px] font-bold uppercase text-slate-500">{isHi ? 'सत्यापित एवं संपन्न' : 'Completed'}</div>
+                  <div className="text-2xl font-black text-emerald-700 font-mono">{lots.filter(l => l.status === 'Verified & Complete').length}</div>
+                </div>
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                  <div className="text-[10px] font-bold uppercase text-slate-500">{isHi ? 'कुल आवक वजन' : 'Total Intake Weight'}</div>
+                  <div className="text-2xl font-black text-slate-950 font-mono">{lots.reduce((acc, l) => acc + (l.weightKg || 0), 0)} {isHi ? 'किग्रा' : 'kg'}</div>
+                </div>
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+                  <div className="text-[10px] font-bold uppercase text-slate-500">{isHi ? 'सक्रिय कांटा' : 'Active Scale'}</div>
+                  <div className="text-lg font-black text-slate-950 font-mono">Scale #04 (GPCB)</div>
+                </div>
+              </div>
+
+              {/* Filter / Search */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-col sm:flex-row justify-between gap-3 items-center">
+                <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold w-full sm:w-auto">
+                  <button onClick={() => setRecyclerTab('all')} className={`px-3 py-1.5 rounded-lg flex-1 sm:flex-none ${recyclerTab === 'all' ? 'bg-white text-slate-950 shadow-xs' : 'text-slate-600'}`}>
+                    {isHi ? 'सभी' : 'All'} ({lots.length})
+                  </button>
+                  <button onClick={() => setRecyclerTab('pending')} className={`px-3 py-1.5 rounded-lg flex-1 sm:flex-none ${recyclerTab === 'pending' ? 'bg-amber-100 text-amber-950 shadow-xs' : 'text-slate-600'}`}>
+                    {isHi ? 'लंबित' : 'Pending'} ({lots.filter(l => l.status !== 'Verified & Complete').length})
+                  </button>
+                  <button onClick={() => setRecyclerTab('completed')} className={`px-3 py-1.5 rounded-lg flex-1 sm:flex-none ${recyclerTab === 'completed' ? 'bg-emerald-100 text-emerald-950 shadow-xs' : 'text-slate-600'}`}>
+                    {isHi ? 'सत्यापित' : 'Verified'} ({lots.filter(l => l.status === 'Verified & Complete').length})
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  placeholder={isHi ? 'लॉट क्रमांक, सामग्री या कबाड़ीवाला खोजें...' : 'Search lot ID, material, or collector...'}
+                  value={recyclerSearch}
+                  onChange={(e) => setRecyclerSearch(e.target.value)}
+                  className="w-full sm:max-w-xs px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-semibold"
+                />
+              </div>
+
+              {/* Stream of Lots */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {lots
+                  .filter(l => {
+                    const isDone = l.status === 'Verified & Complete';
+                    if (recyclerTab === 'pending' && isDone) return false;
+                    if (recyclerTab === 'completed' && !isDone) return false;
+                    if (recyclerSearch.trim()) {
+                      const q = recyclerSearch.toLowerCase();
+                      return l.id.toLowerCase().includes(q) || l.items.toLowerCase().includes(q) || l.collectorName.toLowerCase().includes(q);
+                    }
+                    return true;
+                  })
+                  .map(lot => {
+                    const isDone = lot.status === 'Verified & Complete';
+                    return (
+                      <div key={lot.id} className={`bg-white rounded-2xl p-5 border flex flex-col justify-between ${isDone ? 'border-emerald-200 bg-emerald-50/20' : 'border-slate-200'}`}>
+                        <div>
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="font-mono text-sm font-black text-slate-950">{lot.id}</span>
+                            <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${isDone ? 'bg-emerald-600 text-white' : 'bg-amber-100 text-amber-900'}`}>
+                              {isDone ? (isHi ? 'सत्यापित एवं संपन्न' : 'VERIFIED & COMPLETE') : (isHi ? 'सत्यापन हेतु तैयार' : 'READY FOR VERIFICATION')}
+                            </span>
+                          </div>
+                          <div className="text-base font-black text-slate-950 mb-3">{lot.items}</div>
+                          <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs mb-4">
+                            <div>
+                              <span className="text-[10px] font-bold text-slate-500 block">{isHi ? 'कबाड़ीवाला' : 'Collector'}</span>
+                              <span className="font-bold text-slate-900 block truncate">{lot.collectorName}</span>
+                              <span className="text-[10px] text-slate-400 block truncate">{lot.area}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-bold text-slate-500 block">{isHi ? 'वजन' : 'Net Weight'}</span>
+                              <span className="font-black text-slate-900 font-mono block">{lot.weight}</span>
+                              <span className="text-xs font-extrabold text-emerald-900 font-mono block">{lot.estValue}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                          {isDone ? (
+                            <>
+                              <span className="text-xs font-bold text-emerald-800">✓ Digital Scale #04 Certified</span>
+                              <button onClick={() => setActiveSlip(lot)} className="text-xs font-bold text-emerald-700 underline">
+                                {isHi ? 'पर्ची देखें' : 'View Official Slip'}
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-xs text-slate-500 font-medium">Scale #04 Ready</span>
+                              <button
+                                onClick={() => handleVerifyLot(lot.id)}
+                                className="bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold text-xs py-2 px-3.5 rounded-xl transition-all"
+                              >
+                                {isHi ? 'कांटे पर जांचें' : 'Verify on Digital Scale'}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </main>
+          )}
+
+          {/* OFFICIAL SLIP MODAL */}
+          {activeSlip && (
+            <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+              <div id="printable-slip" className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
+                <div className="bg-slate-900 text-white p-5 flex justify-between items-center">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                      {isHi ? 'लेन-देन सत्यापित एवं संपन्न' : 'TRANSACTION VERIFIED & SETTLED'}
+                    </div>
+                    <h3 className="text-lg font-black text-white">
+                      {isHi ? 'आधिकारिक ई-कचरा भुगतान पर्ची' : 'Official E-Waste Settlement Slip'}
+                    </h3>
+                  </div>
+                  <button onClick={() => setActiveSlip(null)} className="text-slate-400 hover:text-white font-bold p-1">✕</button>
+                </div>
+
+                <div className="p-6 space-y-4">
+                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-center">
+                    <div className="text-[10px] font-bold uppercase text-slate-500">{isHi ? 'लॉट क्रमांक' : 'Lot Identifier'}</div>
+                    <div className="text-2xl font-black font-mono text-slate-950">{activeSlip.id}</div>
+                  </div>
+
+                  <div className="space-y-2.5 text-xs">
+                    <div className="flex justify-between py-1.5 border-b border-slate-100">
+                      <span className="text-slate-500 font-semibold">{isHi ? 'सामग्री / श्रेणी:' : 'Material / Category:'}</span>
+                      <span className="font-bold text-slate-900">{activeSlip.items}</span>
+                    </div>
+                    <div className="flex justify-between py-1.5 border-b border-slate-100">
+                      <span className="text-slate-500 font-semibold">{isHi ? 'सत्यापित कुल वजन:' : 'Net Verified Weight:'}</span>
+                      <span className="font-black font-mono text-slate-900">{activeSlip.weight}</span>
+                    </div>
+                    <div className="flex justify-between py-1.5 border-b border-slate-100">
+                      <span className="text-slate-500 font-semibold">{isHi ? 'कबाड़ीवाला:' : 'Collector:'}</span>
+                      <span className="font-bold text-slate-900">{activeSlip.collectorName}</span>
+                    </div>
+                    <div className="flex justify-between py-1.5 border-b border-slate-100">
+                      <span className="text-slate-500 font-semibold">{isHi ? 'सत्यापित केंद्र:' : 'Verified Facility:'}</span>
+                      <span className="font-bold text-slate-900">GPCB Reg Recycler #AHM-09</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
+                    <span className="text-[11px] font-black text-emerald-950">
+                      ✓ Digital Scale Stamp: Scale #04 (GPCB #AHM-09)
+                    </span>
+                  </div>
+
+                  <div className="pt-2 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-3 rounded-xl text-xs transition-colors"
+                    >
+                      🖨️ {isHi ? 'पर्ची प्रिंट करें' : 'Print Slip'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSlip(null)}
+                      className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl text-xs transition-colors"
+                    >
+                      {isHi ? 'पर्ची बंद करें' : 'Close'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* LOCATION MODAL */}
+          {isLocModalOpen && (
+            <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+              <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-slate-200 p-6 space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="font-black text-lg text-slate-950">
+                    {isHi ? 'स्थान चुनें' : 'Select Catchment Hub'}
+                  </h3>
+                  <button onClick={() => setIsLocModalOpen(false)} className="text-slate-400 hover:text-slate-900 font-bold">✕</button>
+                </div>
+                <div className="space-y-2">
+                  {GUJARAT_HUBS.map((hub, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => {
+                        setLocation(hub);
+                        setIsLocModalOpen(false);
+                      }}
+                      className={`p-3 rounded-xl border text-xs font-bold cursor-pointer transition-all ${location.area === hub.area ? 'border-emerald-700 bg-emerald-50 text-emerald-950' : 'border-slate-200 hover:bg-slate-50'}`}
+                    >
+                      <div>{hub.area}</div>
+                      <div className="text-[10px] text-slate-400 font-normal">{hub.city}, Gujarat</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+      );
+    }
+
+    // Render React Application
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

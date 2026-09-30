@@ -1,0 +1,10 @@
+{
+  "name": "Remix E-Nexus",
+  "description": "A simple digital bridge connecting informal e-waste collectors with authorized recyclers.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
